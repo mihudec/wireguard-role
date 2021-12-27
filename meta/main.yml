@@ -1,0 +1,12 @@
+galaxy_info:
+  role_name: wireguard
+  author: Miroslav Hudec
+  description: Configure WireGuard on Debian-based distros
+
+  license: GPL-3.0-or-later
+
+  min_ansible_version: 2.1
+
+  galaxy_tags: []
+
+dependencies: []
