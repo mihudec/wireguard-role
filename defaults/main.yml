@@ -1,2 +1,16 @@
 ---
 # defaults file for wireguard
+
+wireguard_apt_update_cache: true
+wireguard_apt_cache_valid_time: "3600"
+
+
+wireguard_remote_directory: '/etc/wireguard'
+wireguard_conf_owner: root
+wireguard_conf_group: root
+wireguard_conf_mode: 0600
+
+wireguard_service_enabled: true
+wireguard_service_state: 'started'
+
+wireguard_port: 51820

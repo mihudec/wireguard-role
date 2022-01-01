@@ -1,0 +1,79 @@
+#jinja2: lstrip_blocks:"True",trim_blocks:"True"
+{% from "macros.j2" import stringOrList with context %}
+{% if wg_interface is defined and wg_interface is mapping %}
+[Interface]
+# Interface: {{ wg_interface.name }}
+PrivateKey = {{ wireguard_private_key }}
+Address = {{ wg_interface.address_ipv4 }}
+ListenPort = {{ wg_interface.port | default(wireguard_port) }}
+{%   if wg_interface.dns is defined and wg_interface.dns is iterable %}
+{%     if wg_interface.dns is string %}
+DNS = {{ wg_interface.dns }}
+{%     else %}
+DNS = {{ wg_interface.dns | join(',') }}
+{%     endif %}
+{%   endif %}
+{%   if wg_interface.mtu is defined or wireguard_mtu is defined %}
+MTU = {{ wg_interface.mtu | default(wireguard_mtu) }}
+{%   endif %}
+{%   if wg_interface.preup is defined %}
+{%     for wg_preup in wg_interface.preup %}
+PreUp = {{ wg_preup }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.predown is defined %}
+{%     for wg_predown in wg_interface.predown %}
+PreDown = {{ wg_predown }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.postup is defined %}
+{%     for wg_postup in wg_interface.postup %}
+PostUp = {{ wg_postup }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.postdown is defined %}
+{%     for wg_postdown in wg_interface.postdown %}
+PostDown = {{ wg_postdown }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.save_config is defined %}
+SaveConfig = true
+{%   endif %}
+
+{%   if wg_interface.peers is defined %}
+{%     for peer in wg_interface.peers %}
+[Peer]
+# Host: {{ peer.name }}
+PublicKey = {{ hostvars[peer.name].wireguard_facts[peer.interface].public_key }}
+{%       set query = "[?name=='" + peer.interface +"']" %}
+{%       set peer_interface_config = hostvars[peer.name].wireguard_interfaces | json_query(query) | first %}
+{%       if peer.allowed_ips is defined %}
+AllowedIPs = {{ stringOrList(data=peer.allowed_ips) }}
+{%       else %}
+AllowedIPs = {{ peer_interface_config.address_ipv4.split('/')[0] }}/32
+{%       endif %}
+{%       if peer.endpoint_ipv4 is defined and peer.endpoint_port is defined %}
+EndPoint = {{ peer.endpoint_ipv4 }}:{{ peer.endpoint_port }}
+{%       endif %}
+
+{%     endfor %}
+{%   endif%}
+
+{%   if wg_interface.peers is defined %}
+### Unamanaged Peers
+{%     for peer in wg_interface.unmanaged_peers %}
+[Peer]
+# Host: {{ peer.name }}
+PublicKey = {{ peer.public_key }}
+{%       if peer.allowed_ips is defined %}
+AllowedIPs = {{ stringOrList(data=peer.allowed_ips) }}
+{%       endif %}
+{%       if peer.endpoint_ipv4 is defined and peer.endpoint_port is defined %}
+EndPoint = {{ peer.endpoint_ipv4 }}:{{ peer.endpoint_port }}
+{%       endif %}
+
+{%     endfor %}
+{%   endif%}
+{% endif %}
+
+

@@ -1,0 +1,10 @@
+{% macro stringOrList(data) %}
+{%   if data is iterable %}
+{%     if data is string %}
+{{ data }}
+{%     elif data is mapping %}
+{%     else %}
+{{ data | join(',') }}
+{%     endif %}
+{%   endif %}
+{% endmacro %}

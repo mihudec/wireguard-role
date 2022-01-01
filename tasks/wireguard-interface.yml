@@ -1,0 +1,33 @@
+- name: Generate WireGuard configuration file
+  template:
+    src: wg_conf.j2
+    dest: "{{ wireguard_remote_directory }}/{{ wg_interface.name }}.conf"
+    owner: "{{ wireguard_conf_owner }}"
+    group: "{{ wireguard_conf_group }}"
+    mode: "{{ wireguard_conf_mode }}"
+  # no_log: '{{ ansible_verbosity < 3 }}'
+  register: wireguard__register_config_changed
+  notify:
+    - reconfigure_wireguard
+
+- name: Set Interface Facts
+  set_fact:
+    interface_facts: |
+      {
+        "{{ wg_interface.name }}": {
+          "templated_config": {{ wireguard__register_config_changed }}
+        }
+      }
+
+- name: DEBUG Interface Facts
+  debug:
+    var: interface_facts
+
+- name: Merge Wireguard Facts
+  set_fact:
+    wireguard_facts: "{{ wireguard_facts | combine(interface_facts, recursive=true) }}"
+
+- name: DEBUG Wireguard Facts
+  debug:
+    var: wireguard_facts
+

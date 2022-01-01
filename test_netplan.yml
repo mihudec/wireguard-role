@@ -1,0 +1,82 @@
+- hosts: servers
+  gather_facts: false  
+  tasks:
+    - name: Set WireGuard Netplan Facts
+      set_fact:
+        netplan_wg_config: 
+          interfaces: |
+              {
+                {% for interface, config in netplan_wireguard.interfaces.items() %}
+                "{{ interface }}": {{ config }},
+                {% endfor %}
+              }
+    
+    - name: Private Key Handling
+      include_tasks:
+        file: private_key_handling.yml
+        apply:
+          vars:
+            interface:
+              name: "{{ item.key }}"
+              config: "{{ item.value }}"
+      loop: "{{ netplan_wg_config.interfaces | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Public Key Handling
+      include_tasks:
+        file: public_key_handling.yml
+        apply:
+          vars:
+            interface:
+              name: "{{ item.key }}"
+              config: "{{ item.value }}"
+      loop: "{{ netplan_wg_config.interfaces | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Peers Handling
+      include_tasks:
+        file: peers_handling.yml
+        apply:
+          vars:
+            interface:
+              name: "{{ item.key }}"
+              config: "{{ item.value }}"
+      loop: "{{ netplan_wg_config.interfaces | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      when:
+        - item.value.peers is defined
+    
+    - name: Debug Hosts
+      debug:
+        msg: "{{ netplan_wg_config }}"
+
+    - name: Convert to Netplan Format
+      debug:
+        msg: "{{ netplan_format }}"
+      vars:
+        netplan_format: |
+
+
+    - name: Template Netplan Config
+      copy:
+        content: "{{ content | to_nice_yaml }}"
+        dest: "~/{{ interface.name }}.conf"
+      loop: "{{ netplan_wg_config.interfaces | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      vars:
+        interface:
+          name: "{{ item.key }}"
+          config: "{{ item.value }}"
+        content: |
+          {
+            "network": {
+              "version": 2,
+              "tunnels": {
+                "{{ interface.name }}": {{ interface.config }}
+              }
+            }
+          }

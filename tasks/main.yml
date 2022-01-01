@@ -1,2 +1,94 @@
 ---
-# tasks file for wireguard
+- name: Gather instance facts
+  setup:
+
+- include_tasks:
+    file: "{{ item }}"
+    apply:
+      tags:
+        - wg-install
+  with_first_found:
+    - "setup-{{ ansible_distribution|lower }}-{{ ansible_distribution_major_version }}.yml"
+    - "setup-{{ ansible_distribution|lower }}-{{ ansible_distribution_version }}.yml"
+    - "setup-{{ ansible_distribution|lower }}-{{ ansible_distribution_release }}.yml"
+    - "setup-{{ ansible_distribution|lower }}.yml"
+    - "setup-{{ ansible_os_family|lower }}.yml"
+  tags:
+    - wg-install
+
+
+- name: Enable WireGuard Kernel Module
+  modprobe:
+    name: wireguard
+    state: present
+  register: wireguard__register_module_enabled
+  until: wireguard__register_module_enabled is succeeded
+  retries: 10
+  delay: 10
+  failed_when: wireguard__register_module_enabled is failure
+  tags:
+    - wg-install
+
+- name: Check wg syncconf
+  block:
+    - name: Get wg subcommands
+      command: "wg --help"
+      register: wireguard__register_subcommands
+      changed_when: false
+      check_mode: false
+
+    - name: Check if wg syncconf subcommand is available
+      set_fact:
+        wg_syncconf: "{{ 'syncconf:' in wireguard__register_subcommands.stdout }}"
+
+    - name: DEBUG wg_syncconf
+      debug:
+        var: wg_syncconf
+  tags: 
+    - wg-generate-keys
+    - wg-config
+
+- name: Set Wireguard Facts
+  set_fact:
+    wireguard_facts: {}
+  tags:
+    - wg-config
+
+- name: Prepare WireGuard Keys
+  include_tasks:
+    file: wireguard-keys.yml
+    apply:
+      tags:
+        - wg-config
+  loop: "{{ wireguard_interfaces }}"
+  loop_control:
+    loop_var: wg_interface
+    label: "{{ wg_interface.name }}"
+  tags:
+    - wg-config
+
+- name: Configure WireGuard Interfaces
+  include_tasks:
+    file: wireguard-interface.yml
+    apply:
+      tags:
+        - wg-config
+  loop: "{{ wireguard_interfaces }}"
+  loop_control:
+    loop_var: wg_interface
+    label: "{{ wg_interface.name }}"
+  tags:
+    - wg-config
+
+- name: Start and Enable WireGuard Service
+  include_tasks:
+    file: wireguard-service.yml
+    apply:
+      tags:
+        - wg-config
+  loop: "{{ wireguard_interfaces }}"
+  loop_control:
+    loop_var: wg_interface
+    label: "{{ wg_interface.name }}"
+  tags:
+    - wg-config

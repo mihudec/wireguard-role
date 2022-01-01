@@ -1,0 +1,31 @@
+- block:
+  - name: Derive Public Key
+    command: "wg pubkey"
+    args:
+      stdin: "{{ interface.config.private_key }}"
+    register: register_wg_public_key
+  
+  - name: Set PublicKey Fact
+    set_fact: 
+      wg_public_key: "{{ register_wg_public_key.stdout }}"
+  
+  - name: Debug Public Key
+    debug:
+      msg: "{{ wg_public_key }}"
+
+  - name: Add Public Key to Config Dict
+    set_fact:
+      netplan_wg_config: "{{ netplan_wg_config | combine(update_dict, recursive=true) }}"
+    vars:
+      interface_config: "{{ interface.config | combine({'public_key': wg_public_key}) }}"
+      update_dict:
+        interfaces: |
+          {
+            "{{ interface.name }}": {{ interface_config }}
+          }
+
+  - name: DEBUG
+    debug:
+      msg: "{{ netplan_wg_config }}"
+  when: 
+    - interface.config.public_key is not defined

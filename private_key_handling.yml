@@ -1,0 +1,32 @@
+- block:
+  - name: Generate Private Key
+    command: wg genkey
+    register: register_wg_private_key
+    no_log: "{{ ansible_verbosity < 3 }}"
+    when: 
+      - interface.config.private_key is not defined
+  
+  - name: Set PrivateKey Fact
+    set_fact: 
+      wg_private_key: "{{ register_wg_private_key.stdout }}"
+  
+  - name: Debug Private Key
+    debug:
+      msg: "{{ wg_private_key }}"
+
+  - name: Add Private Key to Config Dict
+    set_fact:
+      netplan_wg_config: "{{ netplan_wg_config | combine(update_dict, recursive=true) }}"
+    vars:
+      interface_config: "{{ interface.config | combine({'private_key': wg_private_key}) }}"
+      update_dict:
+        interfaces: |
+          {
+            "{{ interface.name }}": {{ interface_config }}
+          }
+
+  - name: DEBUG
+    debug:
+      msg: "{{ netplan_wg_config }}"
+  when: 
+    - interface.config.private_key is not defined

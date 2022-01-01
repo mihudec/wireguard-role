@@ -1,0 +1,81 @@
+- name: DEBUG Peers
+  debug: 
+    msg: "{{ interface.config.peers }}"
+
+- name: Fetch Missing Public Keys
+  set_fact:
+    netplan_wg_config: "{{ netplan_wg_config | combine(update_dict, recursive=true) }}"
+  loop: "{{ interface.config.peers | dict2items }}"
+  loop_control:
+    loop_var: peer_item
+    label: "{{ peer.id }}"
+  vars:
+    peer:
+      id: "{{ peer_item.key }}"
+      config: "{{ peer_item.value }}"
+    updated_peer: "{{ peer.config | combine({'public_key': hostvars[peer.config.name].netplan_wg_config.interfaces[peer.config.interface].public_key }) }}"
+    update_dict: 
+      interfaces: |
+        {
+          "{{ interface.name }}": {
+            "peers": {
+              "{{ peer.id }}": {{ updated_peer }}
+            }
+          }
+        }
+  when: 
+    - peer.config.public_key is not defined
+    - peer.config.name is defined
+    - peer.config.interface is defined
+
+
+- name: Fetch IPv4 Address for Peer
+  set_fact:
+    netplan_wg_config: "{{ netplan_wg_config | combine(update_dict, recursive=true) }}"
+  loop: "{{ interface.config.peers | dict2items }}"
+  loop_control:
+    loop_var: peer_item
+    label: "{{ peer.id }}"
+  vars:
+    peer:
+      id: "{{ peer_item.key }}"
+      config: "{{ peer_item.value }}"
+    peer_address_ipv4: "{{ (hostvars[peer.config.name].netplan_wg_config.interfaces[peer.config.interface].address_ipv4.split('/') | first) | ipaddr('address') + '/32' }}"
+    updated_peer: "{{ peer.config | combine({'peer_address_ipv4': peer_address_ipv4 }) }}"
+    update_dict: 
+      interfaces: |
+        {
+          "{{ interface.name }}": {
+            "peers": {
+              "{{ peer.id }}": {{ updated_peer }}
+            }
+          }
+        }
+  changed_when: false
+
+- name: Fetch Missing AllowedIPs
+  set_fact:
+    netplan_wg_config: "{{ netplan_wg_config | combine(update_dict, recursive=true) }}"
+  loop: "{{ interface.config.peers | dict2items }}"
+  loop_control:
+    loop_var: peer_item
+    label: "{{ peer.id }}"
+  vars:
+    peer:
+      id: "{{ peer_item.key }}"
+      config: "{{ peer_item.value }}"
+    peer_address_ipv4: "{{ (hostvars[peer.config.name].netplan_wg_config.interfaces[peer.config.interface].address_ipv4.split('/') | first) | ipaddr('address') + '/32' }}"
+    updated_peer: "{{ peer.config | combine({'allowed_ips': [ peer_address_ipv4 ] }) }}"
+    update_dict: 
+      interfaces: |
+        {
+          "{{ interface.name }}": {
+            "peers": {
+              "{{ peer.id }}": {{ updated_peer }}
+            }
+          }
+        }
+  when: 
+    - peer.config.allowed_ips is not defined
+    - peer.config.name is defined
+    - peer.config.interface is defined

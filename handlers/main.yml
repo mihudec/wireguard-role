@@ -1,2 +1,23 @@
 ---
 # handlers file for wireguard
+- name: WireGuard SyncConf
+  shell: |
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+    systemctl is-active wg-quick@{{ wg_interface_name|quote }} || systemctl start wg-quick@{{ wg_interface_name|quote }}
+    wg syncconf {{ wg_interface_name|quote }} <(wg-quick strip /etc/wireguard/{{ wg_interface_name|quote }}.conf)
+    exit 0
+  args:
+    executable: "/bin/bash"
+  when:
+    - wg_syncconf
+    - wireguard_service_enabled
+    - wg_interface_facts.templated_config.changed
+  loop: "{{ wireguard_facts | dict2items }}"
+  vars:
+    wg_interface_name: "{{ item.key }}"
+    wg_interface_facts: "{{ item.value }}"
+  loop_control:
+    label: "{{ wg_interface_name }}"
+  listen: "reconfigure_wireguard"

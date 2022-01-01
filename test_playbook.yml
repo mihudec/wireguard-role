@@ -1,0 +1,38 @@
+- hosts: servers
+  gather_facts: yes
+  roles:
+    - role: mihudec.wireguard
+  tasks:
+    - name: DEBUG
+      debug:
+        msg: "{{ '1' if enable_ipv4_forwarding else '0' }}"
+      when:
+        - enable_ipv4_forwarding is defined
+      tags:
+        - test
+    - name: Enable IPv4 Forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "{{ '1' if enable_ipv4_forwarding else '0' }}"
+        sysctl_set: yes
+        state: present
+        reload: yes
+        sysctl_file: /etc/sysctl.d/10-wireguard.conf
+      when:
+        - enable_ipv4_forwarding is defined
+      tags:
+        - routing
+
+    - name: Enable IPv6 Forwarding
+      sysctl:
+        name: net.ipv6.conf.all.forwarding
+        value: "{{ '1' if enable_ipv6_forwarding else '0' }}"
+        sysctl_set: yes
+        state: present
+        reload: yes
+        sysctl_file: /etc/sysctl.d/10-wireguard.conf
+      when:
+        - enable_ipv6_forwarding is defined
+      tags:
+        - routing
+    
