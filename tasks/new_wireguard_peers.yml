@@ -1,0 +1,101 @@
+- name: Fetch Missing Public Keys for Peers
+  set_fact:
+    interface: "{{ interface | combine(update_dict, recursive=true) }}"
+    # wireguard_config_facts: "{{ wireguard_config_facts | combine(update_dict, recursive=true) }}" 
+    # msg: "Peer {{ peer.name }}: {{ peer_public_key }}"
+  loop: "{{ interface.config.peers | dict2items }}"
+  vars:
+    peer:
+      id: "{{ item.key }}"
+      name: "{{ item.value.name }}"
+      config: "{{ item.value }}"
+    peer_interface: "{{ hostvars[peer.name].wireguard_config_facts.interfaces[peer.config.interface] }}"
+    peer_public_key: "{{ peer_interface.public_key }}"
+    update_dict: |
+      {
+        "config": {
+          "peers": {
+            "{{ peer.id }}": {
+              "public_key": "{{ peer_public_key }}"
+            }
+          }
+        }
+      }
+  when:
+    - peer.config.public_key is not defined
+
+- name: Debug Public Key
+  debug:
+    msg: "{{ wireguard_config_facts }}"
+
+
+- name: Fetch IPv4 Address for Peers
+  set_fact: 
+    interface: "{{ interface | combine(update_dict, recursive=true) }}"
+    # msg: "Peer {{ peer.name }}: {{ peer_address_ipv4 }}"
+  loop: "{{ interface.config.peers | dict2items }}"
+  vars:
+    peer:
+      id: "{{ item.key }}"
+      name: "{{ item.value.name }}"
+      config: "{{ item.value }}"
+    peer_interface: "{{ hostvars[peer.name].wireguard_config_facts.interfaces[peer.config.interface] }}"
+    peer_address_ipv4: "{{ peer_interface.address_ipv4 | ipaddr('address') }}"
+    update_dict: |
+      {
+        "config": {
+          "peers": {
+            "{{ peer.id }}": {
+              "address_ipv4": "{{ peer_address_ipv4 }}"
+            }
+          }
+        }
+      }
+  when:
+    - peer.config.address_ipv4 is not defined
+
+
+# Make sure that peer's `address_ipv4` is part of allowed_ips
+- name: Fetch Missing AllowedIPs v4 for Peers
+  set_fact:
+    interface: "{{ interface | combine(update_dict, recursive=true) }}"
+  loop: "{{ interface.config.peers | dict2items }}"
+  vars:
+    peer:
+      id: "{{ item.key }}"
+      name: "{{ item.value.name }}"
+      config: "{{ item.value }}"
+    peer_interface: "{{ hostvars[peer.name].wireguard_config_facts.interfaces[peer.config.interface] }}"
+    peer_allowed_ipv4: "{{ peer_interface.address_ipv4 | ipaddr('address') }}/32"
+    update_dict: |
+      {
+        "config": {
+          "peers": {
+            "{{ peer.id }}": {
+              "allowed_ips": {{ ( peer.config.allowed_ips | default([]) + [peer_allowed_ipv4] ) | unique | select | list }}
+            }
+          }
+        }
+      }
+
+
+- name: Assert Public Key is present on Peers
+  assert: 
+    that: 
+      - peer.config.public_key is defined
+  loop: "{{ interface.config.peers | dict2items }}"
+  vars:
+    peer:
+      id: "{{ item.key }}"
+      name: "{{ item.value.name }}"
+      config: "{{ item.value }}"
+
+- name: Update WireGuard Config Facts
+  set_fact:
+    wireguard_config_facts: "{{ wireguard_config_facts | combine(update_dict, recursive=true) }}"
+  vars:
+    update_dict:
+      interfaces: |
+        {
+          "{{ interface.name }}": {{ interface.config }}
+        }
