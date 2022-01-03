@@ -1,0 +1,31 @@
+- name: Accept Forward for Established and Related
+  iptables:
+    chain: FORWARD
+    table: filter
+    jump: ACCEPT
+    ctstate:
+      - ESTABLISHED
+      - RELATED
+    comment: "Accept Established and Related"
+    state: present
+
+- name: Enable Forward from Wireguard Interfaces
+  iptables:
+    chain: FORWARD
+    in_interface: "{{ interface_config.name }}"
+    jump: ACCEPT
+    comment: "Forward Packets from WireGuard Tunnel {{ interface_config.name }}"
+    state: present
+  loop: "{{ wireguard_interfaces }}"
+  loop_control:
+    label: "{{ interface_config.name }}"
+    loop_var: "interface_config"
+    index_var: "interface_index"
+  vars:
+    rule_num: "{{ interface_index + 10 }}"
+
+- name: Make Default Forward Policy DROP
+  iptables:
+    table: filter
+    chain: FORWARD
+    policy: DROP

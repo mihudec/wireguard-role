@@ -3,7 +3,7 @@
     wireguard_config_facts: 
       interfaces: |
           {
-            {% for interface in new_wireguard_interfaces %}
+            {% for interface in wireguard_interfaces %}
             "{{ interface.name }}": {{ interface }},
             {% endfor %}
           }
@@ -46,13 +46,31 @@
           }
         }
 
-- name: Debug
-  debug: 
-    msg: "{{ wireguard_config_facts }}"
+
+- name: Check wg syncconf
+  block:
+    - name: Get wg subcommands
+      command: "wg --help"
+      register: wireguard__register_subcommands
+      changed_when: false
+      check_mode: false
+
+    - name: Check if wg syncconf subcommand is available
+      set_fact:
+        wireguard_config_facts: "{{ wireguard_config_facts | combine(update_dict, recursive=true) }}"
+      vars:
+        update_dict: |
+          {
+            "wg_syncconf": {{ 'syncconf:' in wireguard__register_subcommands.stdout }}
+          }  
+
+  tags: 
+    - wg-generate-keys
+    - wg-config
 
 - name: Handle Key Facts
   include_tasks:
-    file: new_wireguard_keys.yml
+    file: wireguard_keys.yml
     apply:
       vars:
         interface:
@@ -65,13 +83,24 @@
   when:
     - interface_item.value.state | default('present') != 'absent'
 
-- name: Debug 2
-  debug: 
-    msg: "{{ wireguard_config_facts }}"
-
 - name: Handle Peers Facts
   include_tasks:
-    file: new_wireguard_peers.yml
+    file: wireguard_peers.yml
+    apply:
+      vars:
+        interface:
+          name: "{{ interface_item.value.name }}"
+          config: "{{ interface_item.value }}"
+  loop: "{{ wireguard_config_facts.interfaces | dict2items }}"
+  loop_control:
+    label: "{{ interface_item.key }}"
+    loop_var: interface_item
+  when:
+    - interface_item.value.state | default('present') != 'absent'
+
+- name: Generate Interface Config
+  include_tasks:
+    file: wireguard_interface.yml
     apply:
       vars:
         interface:
@@ -87,3 +116,29 @@
 - name: Debug 3
   debug: 
     msg: "{{ wireguard_config_facts }}"
+
+- name: Start and enable WireGuard service
+  service:
+    name: "wg-quick@{{ interface_name }}"
+    state: "{{ wireguard_service_state }}"
+    enabled: "{{ wireguard_service_enabled }}"
+  loop: "{{ wireguard_config_facts.interfaces | dict2items }}"
+  loop_control:
+    label: "{{ interface_item.key }}"
+    loop_var: interface_item
+  vars:
+    interface_name: "{{ interface_item.key }}"
+  when:
+    - wireguard_renderer | default('wireguard') == 'wireguard'
+
+
+- name: Setup IPTables
+  include_tasks:
+    file: setup_iptables.yml
+    apply:
+      tags:
+        - wireguard-iptables
+  when:
+    - wireguard_setup_iptables is sameas true
+  tags:
+    - wireguard-iptables

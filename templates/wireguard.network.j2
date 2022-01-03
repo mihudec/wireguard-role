@@ -1,0 +1,28 @@
+#jinja2: lstrip_blocks:"True",trim_blocks:"True"
+{% from "macros.j2" import stringOrList with context %}
+{% if wg_interface is defined and wg_interface is mapping %}
+[Match]
+Name={{ wg_interface.name }}
+
+[WireGuard]
+ListenPort = {{ wg_interface.port | default(wireguard_port) }}
+PrivateKey = {{ wg_interface.private_key }}
+
+[Network]
+Address = {{ wg_interface.address_ipv4 }}
+
+[Link]
+RequiredForOnline = no
+
+{%   if wg_interface.peers is defined %}
+{%     for peer_id, peer in wg_interface.peers.items() %}
+{%       if peer.routes_v4 is defined %}
+{%         for route in peer.routes_v4 %}
+[Route]
+Destination = {{ route.to }}
+Gateway = {{ route.via | default(peer.address_ipv4) }}
+{%         endfor %}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endif %}

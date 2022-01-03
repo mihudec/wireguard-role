@@ -1,23 +1,61 @@
 ---
 # handlers file for wireguard
-- name: WireGuard SyncConf
-  shell: |
-    set -o errexit
-    set -o pipefail
-    set -o nounset
-    systemctl is-active wg-quick@{{ wg_interface_name|quote }} || systemctl start wg-quick@{{ wg_interface_name|quote }}
-    wg syncconf {{ wg_interface_name|quote }} <(wg-quick strip /etc/wireguard/{{ wg_interface_name|quote }}.conf)
-    exit 0
-  args:
-    executable: "/bin/bash"
+# - name: WireGuard SyncConf
+#   shell: |
+#     set -o errexit
+#     set -o pipefail
+#     set -o nounset
+#     systemctl is-active wg-quick@{{ interface_name|quote }} || systemctl start wg-quick@{{ interface_name|quote }}
+#     wg syncconf {{ interface_name|quote }} <(wg-quick strip {{ wireguard_remote_directory }}/{{ interface_name|quote }}.conf)
+#     exit 0
+#   args:
+#     executable: "/bin/bash"
+#   when:
+#     - wireguard_config_facts.wg_syncconf
+#     - wireguard_service_enabled
+#     - config_changed
+#   loop: "{{ wireguard_config_facts.interfaces | dict2items }}"
+#   loop_control:
+#     loop_var: interface_item
+#     label: "{{ interface_item.key }}"
+#   vars:
+#     interface_name: "{{ interface_item.key }}"
+#     config_changed: "{{ interface_item.value.config_changed }}"
+
+#   listen: "reconfigure_wireguard"
+
+- name: Restart WireGuard Service
+  service:
+    name: "wg-quick@{{ interface_name }}.service" 
+    state: restarted
   when:
-    - wg_syncconf
+    - wireguard_renderer | default('wireguard') == 'wireguard'
+    - wireguard_config_facts.wg_syncconf
     - wireguard_service_enabled
-    - wg_interface_facts.templated_config.changed
-  loop: "{{ wireguard_facts | dict2items }}"
-  vars:
-    wg_interface_name: "{{ item.key }}"
-    wg_interface_facts: "{{ item.value }}"
+    - config_changed
+  loop: "{{ wireguard_config_facts.interfaces | dict2items }}"
   loop_control:
-    label: "{{ wg_interface_name }}"
+    loop_var: interface_item
+    label: "{{ interface_item.key }}"
+  vars:
+    interface_name: "{{ interface_item.key }}"
+    config_changed: "{{ interface_item.value.config_changed }}"
+
+  listen: "reconfigure_wireguard"
+
+
+- name: Renew NetworkD
+  shell: "networkctl reload"
+  when:
+    - wireguard_renderer | default('wireguard') == 'networkd'
+    - wireguard_service_enabled
+    - config_changed
+  loop: "{{ wireguard_config_facts.interfaces | dict2items }}"
+  loop_control:
+    loop_var: interface_item
+    label: "{{ interface_item.key }}"
+  vars:
+    interface_name: "{{ interface_item.key }}"
+    config_changed: "{{ interface_item.value.config_changed }}"
+
   listen: "reconfigure_wireguard"

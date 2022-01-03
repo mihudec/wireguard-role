@@ -1,3 +1,7 @@
+- name: Interface Name Debug - Peers
+  debug: 
+    msg: "{{ interface.name }}"
+
 - name: Fetch Missing Public Keys for Peers
   set_fact:
     interface: "{{ interface | combine(update_dict, recursive=true) }}"
@@ -23,11 +27,7 @@
       }
   when:
     - peer.config.public_key is not defined
-
-- name: Debug Public Key
-  debug:
-    msg: "{{ wireguard_config_facts }}"
-
+  no_log: '{{ ansible_verbosity < 3 }}'
 
 - name: Fetch IPv4 Address for Peers
   set_fact: 
@@ -53,6 +53,7 @@
       }
   when:
     - peer.config.address_ipv4 is not defined
+  no_log: '{{ ansible_verbosity < 3 }}'
 
 
 # Make sure that peer's `address_ipv4` is part of allowed_ips
@@ -77,6 +78,7 @@
           }
         }
       }
+  no_log: '{{ ansible_verbosity < 3 }}'
 
 
 - name: Assert Public Key is present on Peers
@@ -89,6 +91,8 @@
       id: "{{ item.key }}"
       name: "{{ item.value.name }}"
       config: "{{ item.value }}"
+  no_log: '{{ ansible_verbosity < 3 }}'
+
 
 - name: Update WireGuard Config Facts
   set_fact:

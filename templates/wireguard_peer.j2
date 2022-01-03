@@ -1,0 +1,25 @@
+{% from "macros.j2" import stringOrList with context %}
+{% if peer is defined %}
+{% set wireguard_renderer = wireguard_renderer | default('wireguard') %}
+{%   if wireguard_renderer == 'wireguard' %}
+[Peer]
+{% elif wireguard_renderer == 'networkd' %}
+[WireGuardPeer]
+{%   endif %}
+# Peer ID: {{ peer_id }}
+# Peer Name: {{ peer.name }}
+{%   if peer.interface is defined %}
+# Peer Interface: {{ peer.interface }}
+{%   endif %}
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ stringOrList(peer.allowed_ips) }}
+{%   if peer.endpoint_ipv4 is defined and peer.endpoint_port is defined %}
+EndPoint = {{ peer.endpoint_ipv4 }}:{{ peer.endpoint_port }}
+{%   endif %}
+{%   if peer.persistent_keepalive is defined %}
+PersistentKeepalive = {{ peer.persistent_keepalive }}
+{%   endif %}
+{%   if peer.pre_shared_key is defined %}
+PresharedKey = {{ peer.pre_shared_key }}
+{%   endif %}
+{% endif %}
