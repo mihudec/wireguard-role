@@ -6,11 +6,18 @@ wireguard_apt_cache_valid_time: "3600"
 
 
 wireguard_remote_directory: '/etc/wireguard'
+wireguard_networkd_directory: '/etc/systemd/network'
 wireguard_conf_owner: root
 wireguard_conf_group: root
 wireguard_conf_mode: 0600
 
+wireguard_networkd_owner: root
+wireguard_networkd_group: systemd-network
+wireguard_networkd_mode: 0640
+
 wireguard_service_enabled: true
 wireguard_service_state: 'started'
+
+wireguard_setup_iptables: false
 
 wireguard_port: 51820

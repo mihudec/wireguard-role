@@ -1,0 +1,80 @@
+- name: Interface Name Debug - Interface
+  debug: 
+    msg: "{{ interface.name }}"
+
+- name: WireGuard Renderer
+  block:
+    - name: Generate WireGuard Configuration File
+      template:
+        src: wireguard.conf.j2
+        dest: "{{ wireguard_remote_directory }}/{{ interface.name }}.conf"
+        owner: "{{ wireguard_conf_owner }}"
+        group: "{{ wireguard_conf_group }}"
+        mode: "{{ wireguard_conf_mode }}"
+      # no_log: '{{ ansible_verbosity < 3 }}'
+      register: wireguard__register_config_changed
+      vars:
+        wg_interface: "{{ interface.config }}"
+      notify:
+        - reconfigure_wireguard
+
+    - name: Update WireGuard Config Facts
+      set_fact:
+        wireguard_config_facts: "{{ wireguard_config_facts | combine(update_dict, recursive=true) }}"
+      vars:
+        update_dict:
+          interfaces: |
+            {
+              "{{ interface.name }}": {
+                "config_changed": {{ wireguard__register_config_changed.changed }}
+              }
+            }
+      no_log: '{{ ansible_verbosity < 3 }}'
+  when:
+    - wireguard_renderer | default('wireguard') == 'wireguard'
+
+- name: NetworkD Renderer
+  block:
+    - name: Generate WireGuard Netdev File
+      template:
+        src: wireguard.netdev.j2
+        dest: "{{ wireguard_networkd_directory }}/{{ interface.name }}.netdev"
+        owner: "{{ wireguard_networkd_owner }}"
+        group: "{{ wireguard_networkd_group }}"
+        mode: "{{ wireguard_networkd_mode }}"
+      # no_log: '{{ ansible_verbosity < 3 }}'
+      register: wireguard__register_config_netdev_changed
+      vars:
+        wg_interface: "{{ interface.config }}"
+      notify:
+        - reconfigure_wireguard
+
+    - name: Generate WireGuard Network File
+      template:
+        src: wireguard.network.j2
+        dest: "{{ wireguard_networkd_directory }}/{{ interface.name }}.network"
+        owner: "{{ wireguard_networkd_owner }}"
+        group: "{{ wireguard_networkd_group }}"
+        mode: "{{ wireguard_networkd_mode }}"
+      # no_log: '{{ ansible_verbosity < 3 }}'
+      register: wireguard__register_config_network_changed
+      vars:
+        wg_interface: "{{ interface.config }}"
+      notify:
+        - reconfigure_wireguard
+
+    - name: Update WireGuard Config Facts
+      set_fact:
+        wireguard_config_facts: "{{ wireguard_config_facts | combine(update_dict, recursive=true) }}"
+      vars:
+        update_dict:
+          interfaces: |
+            {
+              "{{ interface.name }}": {
+                "config_changed": {{ wireguard__register_config_netdev_changed.changed or wireguard__register_config_network_changed.changed}}
+              }
+            }
+  when:
+    - wireguard_renderer | default('wireguard') == 'networkd'
+
+

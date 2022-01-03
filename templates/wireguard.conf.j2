@@ -1,0 +1,73 @@
+#jinja2: lstrip_blocks:"True",trim_blocks:"True"
+{% from "macros.j2" import stringOrList with context %}
+{% if wg_interface is defined and wg_interface is mapping %}
+[Interface]
+# Interface: {{ wg_interface.name }}
+PrivateKey = {{ wg_interface.private_key }}
+Address = {{ wg_interface.address_ipv4 }}
+ListenPort = {{ wg_interface.port | default(wireguard_port) }}
+{%   if wg_interface.dns is defined and wg_interface.dns is iterable %}
+{%     if wg_interface.dns is string %}
+DNS = {{ wg_interface.dns }}
+{%     else %}
+DNS = {{ wg_interface.dns | join(',') }}
+{%     endif %}
+{%   endif %}
+{%   if wg_interface.mtu is defined or wireguard_mtu is defined %}
+MTU = {{ wg_interface.mtu | default(wireguard_mtu) }}
+{%   endif %}
+{%   if wg_interface.preup is defined %}
+{%     for wg_preup in wg_interface.preup %}
+PreUp = {{ wg_preup }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.predown is defined %}
+{%     for wg_predown in wg_interface.predown %}
+PreDown = {{ wg_predown }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.postup is defined %}
+{%     for wg_postup in wg_interface.postup %}
+PostUp = {{ wg_postup }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.postdown is defined %}
+{%     for wg_postdown in wg_interface.postdown %}
+PostDown = {{ wg_postdown }}
+{%     endfor %}
+{%   endif %}
+{%   if wg_interface.save_config is defined %}
+{%     if wg_interface.save_config is sameas true %}
+SaveConfig = true
+{%     elif wg_interface.save_config is sameas false %}
+SaveConfig = false
+{%     endif %}
+{%   endif %}
+{%   if wg_interface.peers is defined and wg_interface.peers is mapping %}
+
+#################
+# MANAGED PEERS #
+#################
+{%     for peer_id, peer in wg_interface.peers.items() %}
+{%       include 'wireguard_peer.j2' %}
+
+{%     endfor %}
+
+{%   endif %}
+{%   if wg_interface.unmanaged_peers is defined and wg_interface.peers is mapping %}
+
+#####################
+# NOT MANAGED PEERS #
+#####################
+{%     for peer_id, peer in wg_interface.unmanaged_peers.items() %}
+{%       include 'wireguard_peer.j2' %}
+
+{%     endfor %}
+
+{%   endif %}
+
+
+
+{% endif %}
+
+

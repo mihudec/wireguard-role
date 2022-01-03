@@ -1,0 +1,117 @@
+- name: Interface Name Debug - Keys
+  debug: 
+    msg: "{{ interface.name }}"
+
+- name: Register if Config File Exists
+  stat: 
+    path: "{{ wireguard_remote_directory }}/{{ interface.name }}.conf"
+  no_log: '{{ ansible_verbosity < 3 }}'
+  register: wireguard__register_config_file
+  
+
+- name: WireGuard Private Key Handling for Specified Keys
+  set_fact:
+    wireguard_private_key: "{{ interface.config.private_key }}"
+  no_log: '{{ ansible_verbosity < 3 }}'
+  when:
+    - interface.config.private_key is defined
+
+- name: WireGuard Private Key Handling for New Keys
+  block:
+    - name: Generate WireGuard Private Key
+      command: "wg genkey"
+      register: wireguard__register_private_key
+      changed_when: false
+      no_log: '{{ ansible_verbosity < 3 }}'
+      tags:
+        - wg-generate-keys
+
+    - name: Set Private Key Fact
+      set_fact:
+        wireguard_private_key: "{{ wireguard__register_private_key.stdout }}"
+      no_log: '{{ ansible_verbosity < 3 }}'
+      tags:
+        - wg-generate-keys
+  when:
+    - not wireguard__register_config_file.stat.exists
+    - interface.config.private_key is not defined
+
+- name: WireGuard private key handling for existing keys
+  block:
+    - name: "Read WireGuard Config File for '{{ interface.name }}'"
+      slurp:
+        src: "{{ wireguard_remote_directory }}/{{ interface.name }}.conf"
+      register: wireguard__register_config
+      no_log: '{{ ansible_verbosity < 3 }}'
+      when:
+        - wireguard_renderer | default('wireguard') == 'wireguard'
+
+    - name: "Read WireGuard Netdev File for '{{ interface.name }}'"
+      slurp:
+        src: "{{ wireguard_networkd_directory }}/{{ interface.name }}.netdev"
+      register: wireguard__register_config
+      no_log: '{{ ansible_verbosity < 3 }}'
+      when:
+        - wireguard_renderer | default('wireguard') == 'networkd'
+
+    - name: Set private key fact
+      set_fact:
+        wireguard_private_key: "{{ wireguard__register_config['content'] | b64decode | regex_findall('PrivateKey = (.*)') | first }}"
+      no_log: '{{ ansible_verbosity < 3 }}'
+  when:
+    - wireguard__register_config_file.stat.exists
+    - interface.config.private_key is not defined
+
+- name: Assert Private Key Fact Exists
+  assert:
+    that:
+      - wireguard_private_key is defined
+    msg: "Private Key Fact Missing"
+  no_log: '{{ ansible_verbosity < 3 }}'
+
+
+- name: WireGuard PublicKey Handling for Specified Keys
+  set_fact:
+    wireguard_public_key: "{{ interface.config.public_key }}"
+  when:
+    - interface.config.public_key is defined
+
+- name: WireGuard Public Key Handling for Missing Keys
+  block:
+    - name: Derive WireGuard Public Key
+      command: "wg pubkey"
+      args:
+        stdin: "{{ wireguard_private_key }}"
+      register: wireguard__register_public_key
+      changed_when: false
+      check_mode: false
+      no_log: '{{ ansible_verbosity < 3 }}'
+
+    - name: Set Public Key Fact
+      set_fact:
+        wireguard_public_key: "{{ wireguard__register_public_key.stdout }}"
+  when:
+    - interface.config.public_key is not defined
+
+- name: Assert Public Key Fact Exists
+  assert:
+    that:
+      - wireguard_public_key is defined
+    msg: "Public Key Fact Missing"
+  no_log: '{{ ansible_verbosity < 3 }}'
+
+- name: Update WireGuard Config Facts
+  set_fact:
+    wireguard_config_facts: "{{ wireguard_config_facts | combine(update_dict, recursive=true) }}"
+  vars:
+    update_dict:
+      interfaces: |
+        {
+          "{{ interface.name }}": {
+            "private_key": "{{ wireguard_private_key }}",
+            "public_key": "{{ wireguard_public_key }}"
+          }
+        }
+  no_log: '{{ ansible_verbosity < 3 }}'
+  when:
+    - (interface.config.private_key is not defined) or (interface.config.public_key is not defined)

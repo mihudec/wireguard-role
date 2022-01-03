@@ -1,0 +1,42 @@
+#jinja2: lstrip_blocks:"True",trim_blocks:"True"
+{% from "macros.j2" import stringOrList with context %}
+{% if wg_interface is defined and wg_interface is mapping %}
+[NetDev]
+Name={{ wg_interface.name }}
+Kind=wireguard
+{% if wg_interface.description is defined %}
+Description = {{ wg_interface.description }}
+{% endif %}
+{% if wg_interface.mtu is defined %}
+MTU = {{ wg_interface.mtu }}
+{% endif %}
+
+[WireGuard]
+ListenPort = {{ wg_interface.port | default(wireguard_port) }}
+PrivateKey = {{ wg_interface.private_key }}
+
+{%   if wg_interface.peers is defined and wg_interface.peers is mapping %}
+
+#################
+# MANAGED PEERS #
+#################
+{%     for peer_id, peer in wg_interface.peers.items() %}
+{%       with wireguard_renderer = 'networkd' %}
+{%         include 'wireguard_peer.j2' %}
+{%       endwith %}
+{%     endfor %}
+
+{%   endif %}
+{%   if wg_interface.unmanaged_peers is defined and wg_interface.peers is mapping %}
+
+#####################
+# NOT MANAGED PEERS #
+#####################
+{%     for peer_id, peer in wg_interface.unmanaged_peers.items() %}
+{%       with wireguard_renderer = 'networkd' %}
+{%         include 'wireguard_peer.j2' %}
+{%       endwith %}
+{%     endfor %}
+
+{%   endif %}
+{% endif %}
